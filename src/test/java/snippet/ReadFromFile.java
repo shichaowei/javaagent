@@ -1,4 +1,4 @@
-package monitor.agent;
+package snippet;
 
 import java.io.BufferedReader;
 import java.io.File;

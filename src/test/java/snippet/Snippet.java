@@ -1,4 +1,4 @@
-package monitor.agent;
+package snippet;
 
 
 public class Snippet {
