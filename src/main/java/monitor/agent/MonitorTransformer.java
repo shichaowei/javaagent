@@ -142,12 +142,9 @@ public class MonitorTransformer implements ClassFileTransformer {
 	public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
 			ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
 		// 先判断下现在加载的class的包路径是不是需要监控的类，通过instrumentation进来的class路径用‘/’分割
-		if (className.contains("org/apache/ibatis")) {
-//			System.out.println("classname is " + className);
-		}
 		if (className.startsWith("monitor/agent") || className.startsWith("com/neo/mapper")
 				|| (className.startsWith("org/apache/ibatis") && (!className.contains("sun")))) {
-			System.out.println("classname is " + className);
+//			System.out.println("classname is " + className);
 			// 将‘/’替换为‘.’m比如monitor/agent/Mytest替换为monitor.agent.Mytest
 			className = className.replace("/", ".");
 			CtClass ctclass = null;
@@ -283,8 +280,7 @@ public class MonitorTransformer implements ClassFileTransformer {
 								String var = String.valueOf(i) + "****" + ctmethod.getName() + "****"
 										+ ctclass.getName();
 
-								System.out.println("javaagent content:" + String.valueOf(i) + "****"
-										+ ctmethod.getName() + "****" + ctclass.getName());
+//								System.out.println("javaagent content:" + String.valueOf(i) + "****"+ ctmethod.getName() + "****" + ctclass.getName());
 								ctmethod.insertBefore(""
 										+ "try {"
 										+ "Object parameter = null;if ($2 !=null) { parameter = $2;}"
@@ -292,17 +288,14 @@ public class MonitorTransformer implements ClassFileTransformer {
 										+ "org.apache.ibatis.session.Configuration configuration = $1.getConfiguration();"
 										+ "Object obj = boundSql.getParameterObject();"
 										+ "String value=getParameterValue(obj);"
-										+ "System.out.println(value);"
-										+ "System.out.println(\""+var+"\");"
 										+ "String sql =showSql(configuration, boundSql).replaceAll(\"\\r|\\n|\\\\s\", \" \");"
-										+ "System.out.println(sql);"
+										+ "System.out.println(\"intercept sql:\"+sql);"
 										+ "org.apache.http.impl.client.CloseableHttpClient httpCilent = org.apache.http.impl.client.HttpClients.createDefault();"
 										+ "String httpserver=\""+httpserver+"\";"
 										+ "String businessJdbcUrl=\""+businessJdbcUrl+"\";"
 										+ "String businessJdbcName=\""+businessJdbcName+"\";"
 										+ "String businessJdbcPassword=\""+businessJdbcPassword+"\";"
-										+ "String geturl=\"http://\"+httpserver+\"/sqlprocess?sql=\"+java.net.URLEncoder.encode(sql)+\"&businessJdbcUrl=\"+java.net.URLEncoder.encode(businessJdbcUrl)+\"&businessJdbcName=\"+java.net.URLEncoder.encode(businessJdbcName)+\"&businessJdbcPassword=\"+java.net.URLEncoder.encode(businessJdbcPassword);"
-										+ "System.out.println(\"geturl is :\"+geturl);"
+										+ "String geturl=\"http://\"+httpserver+\"/sqlprocess?sqlcontent=\"+java.net.URLEncoder.encode(sql)+\"&businessJdbcUrl=\"+java.net.URLEncoder.encode(businessJdbcUrl)+\"&businessJdbcName=\"+java.net.URLEncoder.encode(businessJdbcName)+\"&businessJdbcPassword=\"+java.net.URLEncoder.encode(businessJdbcPassword);"
 										+ "org.apache.http.client.methods.HttpGet httpGet = new org.apache.http.client.methods.HttpGet(geturl);"
 										+ "httpCilent.execute(httpGet);"
 										+ "}catch (Exception e) {"
