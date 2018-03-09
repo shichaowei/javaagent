@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.TreeMap;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.log4j.Logger;
 
 import javassist.CannotCompileException;
 import javassist.ClassClassPath;
@@ -27,17 +28,20 @@ import javassist.bytecode.MethodInfo;
 
 public class MonitorTransformer implements ClassFileTransformer {
 
+	private static Logger logger = Logger.getLogger(MonitorTransformer.class);
+
 	final static String prefix = "\nlong startTime = System.currentTimeMillis();\n";
 	final static String postfix = "\nlong endTime = System.currentTimeMillis();\n";
 
 	static String businessJdbcUrl = "jdbc:mysql://10.200.130.103:3306/test?useUnicode=true&characterEncoding=utf-8";
 	static String businessJdbcName = "fdtest";
 	static String businessJdbcPassword = "Mysqltest@123098";
-	static String httpserver = "192.168.16.18:8090";
+	static String httpserver = "10.200.141.37:8080";
+	static String hasResult = "false";
 
 	static Boolean CachingExecutorFlag = true;
 	static Boolean SimpleExecutorFlag = true;
-	static Boolean ExecutorFlag = true;
+//	static Boolean ExecutorFlag = true;
 	final static List<String> methodList = new ArrayList<String>();
 	static {
 		// methodList.add("monitor.agent.MyTest.sayHello");
@@ -47,8 +51,8 @@ public class MonitorTransformer implements ClassFileTransformer {
 		// methodList.add("com.alibaba.druid.util.JdbcUtils.executeUpdate");
 		// methodList.add("org.apache.ibatis.executor.BaseExecutor.query");
 		// methodList.add("org.apache.ibatis.executor.BaseExecutor.update");
-		methodList.add("org.apache.ibatis.executor.CachingExecutor.query");
-		methodList.add("org.apache.ibatis.executor.CachingExecutor.update");
+//		methodList.add("org.apache.ibatis.executor.CachingExecutor.query");
+//		methodList.add("org.apache.ibatis.executor.CachingExecutor.update");
 		methodList.add("org.apache.ibatis.executor.SimpleExecutor.doQuery");
 		methodList.add("org.apache.ibatis.executor.SimpleExecutor.doUpdate");
 		// methodList.add("org.apache.ibatis.session.defaults.DefaultSqlSession.selectList");
@@ -76,6 +80,9 @@ public class MonitorTransformer implements ClassFileTransformer {
 				break;
 			case "httpserver":
 				httpserver=value;
+				break;
+			case "hasResult":
+				hasResult=value;
 				break;
 
 			default:
@@ -144,7 +151,7 @@ public class MonitorTransformer implements ClassFileTransformer {
 		// 先判断下现在加载的class的包路径是不是需要监控的类，通过instrumentation进来的class路径用‘/’分割
 		if (className.startsWith("monitor/agent") || className.startsWith("com/neo/mapper")
 				|| (className.startsWith("org/apache/ibatis") && (!className.contains("sun")))) {
-//			System.out.println("classname is " + className);
+			logger.info("classname is " + className);
 			// 将‘/’替换为‘.’m比如monitor/agent/Mytest替换为monitor.agent.Mytest
 			className = className.replace("/", ".");
 			CtClass ctclass = null;
@@ -282,6 +289,7 @@ public class MonitorTransformer implements ClassFileTransformer {
 
 //								System.out.println("javaagent content:" + String.valueOf(i) + "****"+ ctmethod.getName() + "****" + ctclass.getName());
 								ctmethod.insertBefore(""
+										+ "org.apache.http.impl.client.CloseableHttpClient httpCilent = org.apache.http.impl.client.HttpClients.createDefault();"
 										+ "try {"
 										+ "Object parameter = null;if ($2 !=null) { parameter = $2;}"
 										+ "org.apache.ibatis.mapping.BoundSql boundSql=$1.getBoundSql(parameter);"
@@ -289,18 +297,21 @@ public class MonitorTransformer implements ClassFileTransformer {
 										+ "Object obj = boundSql.getParameterObject();"
 										+ "String value=getParameterValue(obj);"
 										+ "String sql =showSql(configuration, boundSql).replaceAll(\"\\r|\\n|\\\\s\", \" \");"
+										+ "org.apache.log4j.Logger.getLogger(this.getClass()).info(\"intercept sql:\"+sql);"
 										+ "System.out.println(\"intercept sql:\"+sql);"
-										+ "org.apache.http.impl.client.CloseableHttpClient httpCilent = org.apache.http.impl.client.HttpClients.createDefault();"
 										+ "String httpserver=\""+httpserver+"\";"
 										+ "String businessJdbcUrl=\""+businessJdbcUrl+"\";"
 										+ "String businessJdbcName=\""+businessJdbcName+"\";"
 										+ "String businessJdbcPassword=\""+businessJdbcPassword+"\";"
-										+ "String geturl=\"http://\"+httpserver+\"/sqlprocess?sqlcontent=\"+java.net.URLEncoder.encode(sql)+\"&businessJdbcUrl=\"+java.net.URLEncoder.encode(businessJdbcUrl)+\"&businessJdbcName=\"+java.net.URLEncoder.encode(businessJdbcName)+\"&businessJdbcPassword=\"+java.net.URLEncoder.encode(businessJdbcPassword);"
+										+ "String hasResult=\""+hasResult+"\";"
+										+ "String geturl=\"http://\"+httpserver+\"/sqlprocess?sqlcontent=\"+java.net.URLEncoder.encode(sql)+\"&businessJdbcUrl=\"+java.net.URLEncoder.encode(businessJdbcUrl)+\"&businessJdbcName=\"+java.net.URLEncoder.encode(businessJdbcName)+\"&businessJdbcPassword=\"+java.net.URLEncoder.encode(businessJdbcPassword)+\"&hasResult=\"+java.net.URLEncoder.encode(hasResult);"
 										+ "org.apache.http.client.methods.HttpGet httpGet = new org.apache.http.client.methods.HttpGet(geturl);"
 										+ "httpCilent.execute(httpGet);"
 										+ "}catch (Exception e) {"
 										+ "System.out.println(\"javaagent is exception\");"
 										+ "e.printStackTrace();"
+										+ "}finally {"
+										+ "httpCilent.close();"
 										+ "}"
 //										+ "System.out.println(boundSql.getSql().toString());"
 										);
