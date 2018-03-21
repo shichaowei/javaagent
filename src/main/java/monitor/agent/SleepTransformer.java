@@ -17,10 +17,12 @@ import javassist.CtMethod;
 import javassist.LoaderClassPath;
 import javassist.NotFoundException;
 
-public class MonitorTransformer implements ClassFileTransformer {
+public class SleepTransformer implements ClassFileTransformer {
 
 	final static List<String> methodList = new ArrayList<String>();
 	final static List<String> classList = new ArrayList<String>();
+	static long sleeptime = 5000;
+	static String sleeplocation = "after";
 
 	/**
 	 * -javaagent:/root/javaagent/javaagentsrc-0.0.1-SNAPSHOT-jar-with-dependencies.jar="
@@ -29,7 +31,7 @@ public class MonitorTransformer implements ClassFileTransformer {
 	 *
 	 * @param agentArgs
 	 */
-	public MonitorTransformer(String agentArgs) {
+	public SleepTransformer(String agentArgs) {
 		String[] args = agentArgs.split("\\#\\#");
 		System.out.println(ToStringBuilder.reflectionToString(args));
 		for (String element : args) {
@@ -46,6 +48,12 @@ public class MonitorTransformer implements ClassFileTransformer {
 				for (String methodvar : value.split(",")) {
 					methodList.add(methodvar);
 				}
+				break;
+			case "sleeplocation":
+				sleeplocation = value;
+				break;
+			case "sleeptime":
+				sleeptime = Long.valueOf(value);
 				break;
 			default:
 				break;
@@ -87,8 +95,12 @@ public class MonitorTransformer implements ClassFileTransformer {
 			CtMethod[] ctMethods = ctclass.getDeclaredMethods();
 			for (CtMethod ctMethod : ctMethods) {
 				try {
-					ctMethod.insertBefore("long var =new java.util.Date().getTime();");
-					ctMethod.insertAfter("long time=new java.util.Date().getTime()-var;System.out.println(time);");
+					System.out.println(ctMethod.getName());
+					if ("after".equals(sleeplocation)) {
+						ctMethod.insertAfter("long sleeptime="+sleeptime+";try {Thread.sleep(sleeptime);} catch (InterruptedException e) {e.printStackTrace();}");
+					} else {
+						ctMethod.insertBefore("long sleeptime="+sleeptime+";try {Thread.sleep(sleeptime);} catch (InterruptedException e) {e.printStackTrace();}");
+					}
 				} catch (CannotCompileException e) {
 					e.printStackTrace();
 				}
@@ -110,9 +122,21 @@ public class MonitorTransformer implements ClassFileTransformer {
 					System.out.println("fangfa:"+methodName);
 					try {
 						CtMethod ctmethod = ctclass.getDeclaredMethod(methodName);
-						ctmethod.insertBefore("long var =new java.util.Date().getTime();");
-						ctmethod.insertAfter("long time=new java.util.Date().getTime()-var;System.out.println(time);");
-					} catch (NotFoundException | CannotCompileException e) {
+						System.out.println(ctmethod.getName());
+						if ("after".equals(sleeplocation)) {
+							try {
+								ctmethod.insertAfter("long sleeptime="+sleeptime+";try {Thread.sleep(sleeptime);} catch (InterruptedException e) {e.printStackTrace();}");
+							} catch (CannotCompileException e) {
+								e.printStackTrace();
+							}
+						} else {
+							try {
+								ctmethod.insertBefore("long sleeptime="+sleeptime+";try {Thread.sleep(sleeptime);} catch (InterruptedException e) {e.printStackTrace();}");
+							} catch (CannotCompileException e) {
+								e.printStackTrace();
+							}
+						}
+					} catch (NotFoundException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
