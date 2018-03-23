@@ -21,11 +21,12 @@ public class MonitorTransformer implements ClassFileTransformer {
 
 	final static List<String> methodList = new ArrayList<String>();
 	final static List<String> classList = new ArrayList<String>();
+	static String httpserver = "10.200.141.37:8080";
 
 	/**
 	 * -javaagent:/root/javaagent/javaagentsrc-0.0.1-SNAPSHOT-jar-with-dependencies.jar="
 	 * classname=com.fengdai.qa.c,com.fengdai.qa.d##
-	 * methodname=com.fengdai.qa.c.m1,com.fengdai.qa.d.m1##sleeptime=5000##sleeplocation=before"
+	 * methodname=com.fengdai.qa.c.m1,com.fengdai.qa.d.m1"
 	 *
 	 * @param agentArgs
 	 */
@@ -37,6 +38,10 @@ public class MonitorTransformer implements ClassFileTransformer {
 			String value = element.substring(element.indexOf("=") + 1).trim();
 			System.out.println(key + "***" + value);
 			switch (key) {
+
+			case "httpserver":
+				httpserver=value;
+				break;
 			case "classname":
 				for (String classvar : value.split(",")) {
 					classList.add(classvar);
@@ -58,8 +63,8 @@ public class MonitorTransformer implements ClassFileTransformer {
 		className = className.replace("/", ".");
 		for (String methodvar : methodList) {
 			if (methodvar.startsWith(className)) {
-				System.out.println(methodvar);
-				System.out.println("check classname:"+className);
+//				System.out.println(methodvar);
+//				System.out.println("check classname:"+className);
 				return true;
 			}
 		}
@@ -109,9 +114,52 @@ public class MonitorTransformer implements ClassFileTransformer {
 					// 得到这方法实例
 					System.out.println("fangfa:"+methodName);
 					try {
+						String outputStr ="\nSystem.out.println(\"this method "+className+":"+methodName+" cost:\" + (endTime-startTime) +\"ms.\");";
+						String httpsrc=
+								 "org.apache.http.impl.client.CloseableHttpClient httpCilent = org.apache.http.impl.client.HttpClients.createDefault();\n"
+								+ "try {"
+								+ "String httpserver=\""+httpserver+"\";"
+								+ "String classname=\""+className+"\";"
+								+ "String methodname=\""+methodName+"\";"
+								+ "exectime= endTime-startTime;"
+								+ "String geturl=\"http://\"+httpserver+\"/monitorprocess?classname=\"+java.net.URLEncoder.encode(classname)+\"&methodname=\"+java.net.URLEncoder.encode(methodname)+\"&exectime=\"+exectime;"
+//								+ "System.out.println(geturl);"
+								+ "org.apache.http.client.methods.HttpGet httpGet = new org.apache.http.client.methods.HttpGet(geturl);"
+								+ "httpCilent.execute(httpGet);"
+								+ "}catch(Exception e){"
+								+ "System.out.println(\"javaagent is exception\");"
+								+ "e.printStackTrace();"
+								+ "}finally {"
+								//此处需要加上close 否则资源不释放 状态closewait
+								+ "httpCilent.close();"
+								+ "}";
+
+
 						CtMethod ctmethod = ctclass.getDeclaredMethod(methodName);
-						ctmethod.insertBefore("long var =new java.util.Date().getTime();");
-						ctmethod.insertAfter("long time=new java.util.Date().getTime()-var;System.out.println(time);");
+						ctmethod.addLocalVariable("startTime", ctclass.longType);
+						ctmethod.addLocalVariable("endTime", ctclass.longType);
+						ctmethod.addLocalVariable("exectime", ctclass.longType);
+						ctmethod.insertBefore("\n startTime = System.currentTimeMillis();\n");
+						ctmethod.insertAfter("\n endTime = System.currentTimeMillis();\n"+httpsrc+outputStr);
+						/*String prefix ="\nlong startTime = System.currentTimeMillis();\n";
+						String postfix ="\nlong endTime = System.currentTimeMillis();\n";
+						String outputStr ="\nSystem.out.println(\"this method "+methodName+" cost:\" +(endTime - startTime) +\"ms.\");";
+						String newMethodName = methodName +"$impl";
+						ctmethod.setName(newMethodName);
+
+						CtMethod newMethod = CtNewMethod.copy(ctmethod, methodName, ctclass,null);
+						StringBuilder bodyStr =new StringBuilder();
+						bodyStr.append("{");
+						bodyStr.append(prefix);
+						bodyStr.append(newMethodName +"($$);\n");
+						bodyStr.append(postfix);
+						bodyStr.append(outputStr);
+						bodyStr.append("}");
+						newMethod.setBody(bodyStr.toString());
+						ctclass.addMethod(newMethod);*/
+
+
+
 					} catch (NotFoundException | CannotCompileException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
